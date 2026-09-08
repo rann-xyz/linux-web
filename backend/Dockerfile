@@ -5,13 +5,13 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files (relative to backend/ since rootDirectory=backend)
 COPY package*.json ./
 
-# Install ALL dependencies (including dev)
+# Install ALL dependencies (including dev for build)
 RUN npm install
 
-# Copy source
+# Copy source (src is inside backend/src)
 COPY src/ ./src/
 COPY tsconfig.json ./
 
