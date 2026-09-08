@@ -1,0 +1,15 @@
+node_modules
+dist
+.git
+*.log
+.env
+.env.*
+!.env.example
+README.md
+*.md
+.DS_Store
+.vscode
+.idea
+*.tsbuildinfo
+backend/src
+frontend/node_modules
