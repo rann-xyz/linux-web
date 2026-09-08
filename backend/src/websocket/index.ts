@@ -2,7 +2,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { IncomingMessage } from 'http';
 import { getUserFromToken } from '../auth/service.js';
 import { getOrCreateContainer, getContainerStats } from '../containers/index.js';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, execSync, ChildProcess } from 'child_process';
 import { AUDIT_EVENTS } from '../auth/crypto.js';
 import { db } from '../database/index.js';
 
@@ -16,7 +16,7 @@ interface TerminalConnection {
 const connections = new Map<string, TerminalConnection>();
 
 export function setupWebSocket(server: import('http').Server): void {
-  const wss = new WebSocketServer({ 
+  const wss = new WebSocketServer({
     noServer: true,
     path: '/api/terminal',
   });
@@ -49,7 +49,7 @@ export function setupWebSocket(server: import('http').Server): void {
 
     try {
       // Get or create container for user
-      const { containerId, container } = await getOrCreateContainer(userId);
+      const { containerId } = await getOrCreateContainer(userId);
 
       currentConnection = {
         ws,
@@ -60,11 +60,9 @@ export function setupWebSocket(server: import('http').Server): void {
       connections.set(userId, currentConnection);
 
       // Start bash process inside the container using docker exec
-      const { exec } = await import('child_process');
-
       const proc = spawn('docker', [
         'exec', '-i', containerId,
-        '/bin/bash', '-l'
+        '/bin/bash', '-li'
       ], {
         env: {
           ...process.env,
@@ -119,7 +117,7 @@ export function setupWebSocket(server: import('http').Server): void {
     }
 
     // Handle incoming messages
-    ws.on('message', async (message: Buffer) => {
+    ws.on('message', (message: Buffer) => {
       try {
         const msg = JSON.parse(message.toString());
 
@@ -132,12 +130,13 @@ export function setupWebSocket(server: import('http').Server): void {
 
           case 'resize':
             // xterm.js sends cols and rows
-            // Docker exec doesn't support resize natively, but we can:
-            // 1. Send SIGWINCH to bash (limited support)
-            // 2. Or use a PTY wrapper like "script" command
-            if (currentConnection?.process) {
-              const { exec } = await import('child_process');
-              exec(`docker exec ${currentConnection.containerId} resize -s ${msg.rows} ${msg.cols} 2>/dev/null`);
+            // Use docker exec resize command if available
+            if (currentConnection?.containerId) {
+              try {
+                execSync(`docker exec ${currentConnection.containerId} resize -s ${msg.rows} ${msg.cols} 2>/dev/null || true`);
+              } catch {
+                // Ignore resize errors
+              }
             }
             break;
 

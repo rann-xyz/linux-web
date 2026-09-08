@@ -1,6 +1,7 @@
-import path from 'path';
-import fs from 'fs/promises';
-import { existsSync } from 'fs';
+import * as path from 'path';
+import * as fs from 'fs/promises';
+import { createReadStream } from 'fs';
+import { ReadStream } from 'fs';
 
 const STORAGE_ROOT = process.env.STORAGE_ROOT || '/data/users';
 
@@ -85,7 +86,7 @@ export async function listFiles(userId: string, dirPath: string = ''): Promise<F
 
     for (const entry of entries) {
       const entryPath = path.join(targetPath, entry.name);
-      
+
       try {
         const stat = await fs.stat(entryPath);
         files.push({
@@ -197,7 +198,7 @@ export async function writeFileContent(userId: string, filePath: string, content
   }
 }
 
-export async function getFileStream(userId: string, filePath: string): Promise<{ stream: fs.ReadStream; filename: string; size: number }> {
+export async function getFileStream(userId: string, filePath: string): Promise<{ stream: ReadStream; filename: string; size: number }> {
   const validation = validateUserPath(userId, filePath);
   if (!validation.valid) {
     throw new Error(validation.error);
@@ -209,7 +210,7 @@ export async function getFileStream(userId: string, filePath: string): Promise<{
   }
 
   return {
-    stream: fs.createReadStream(validation.resolvedPath!),
+    stream: createReadStream(validation.resolvedPath!),
     filename: path.basename(validation.resolvedPath!),
     size: stat.size,
   };
@@ -218,11 +219,10 @@ export async function getFileStream(userId: string, filePath: string): Promise<{
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getPermissions(mode: number): string {
-  const perms = '';
   const chars = 'rwxrwxrwx';
+  let perms = '';
   for (let i = 0; i < 9; i++) {
     const bit = (mode >> (8 - i)) & 1;
-    // eslint-disable-next-line no-bitwise
     perms += bit ? chars[i] : '-';
   }
   return perms;

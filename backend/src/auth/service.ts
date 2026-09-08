@@ -4,7 +4,6 @@ import {
   hashPassword,
   verifyPassword,
   hashToken,
-  generateSessionToken,
   isValidEmail,
   isValidPassword,
   isSessionExpired,
@@ -90,7 +89,7 @@ export async function login(email: string, password: string, ip: string = 'unkno
     }
 
     // Verify password
-    const validPassword = await verifyPassword(password, userRow.password_hash);
+    const validPassword = await verifyPassword(password, userRow.password_hash as string);
     if (!validPassword) {
       await logLoginFailure(user.id, email, ip, 'invalid_password');
       return { success: false, error: 'Invalid email or password' };
@@ -157,7 +156,6 @@ export async function getUserFromToken(token: string): Promise<User | null> {
     if (!decoded) return null;
 
     // Verify session is valid
-    const tokenHash = await hashToken(token);
     const sessionResult = await db.query(
       `SELECT * FROM sessions
        WHERE user_id = $1 AND revoked_at IS NULL
@@ -170,13 +168,13 @@ export async function getUserFromToken(token: string): Promise<User | null> {
     const session = sessionResult.rows[0];
 
     // Check expiration
-    if (isSessionExpired(new Date(session.expires_at))) {
+    if (isSessionExpired(new Date(session.expires_at as Date))) {
       await db.query('UPDATE sessions SET revoked_at = NOW() WHERE id = $1', [session.id]);
       return null;
     }
 
     // Check idle timeout
-    if (isSessionIdle(new Date(session.last_activity))) {
+    if (isSessionIdle(new Date(session.last_activity as Date))) {
       await db.query('UPDATE sessions SET revoked_at = NOW() WHERE id = $1', [session.id]);
       return null;
     }
@@ -233,7 +231,7 @@ function mapRowToUser(row: Record<string, unknown>): User {
     email: row.email as string,
     role: row.role as 'USER' | 'ADMIN',
     status: row.status as 'ACTIVE' | 'SUSPENDED' | 'DEACTIVATED',
-    email_verified: row.email_verified as boolean,
+    email_verified: Boolean(row.email_verified),
     created_at: new Date(row.created_at as string),
     updated_at: new Date(row.updated_at as string),
   };

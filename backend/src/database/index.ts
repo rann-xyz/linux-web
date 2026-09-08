@@ -3,7 +3,7 @@ import pg from 'pg';
 const { Pool } = pg;
 
 export const db = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/terminal',
+  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5432/terminal',
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
@@ -14,10 +14,10 @@ db.on('error', (err) => {
   console.error('Unexpected database error:', err);
 });
 
-export async function query<T = any>(text: string, params?: any[]): Promise<pg.QueryResult<T>> {
+export async function query(text: string, params?: unknown[]): Promise<pg.QueryResult> {
   const start = Date.now();
   try {
-    const result = await db.query<T>(text, params);
+    const result = await db.query(text, params);
     const duration = Date.now() - start;
     if (duration > 1000) {
       console.warn(`Slow query (${duration}ms):`, text.slice(0, 100));
