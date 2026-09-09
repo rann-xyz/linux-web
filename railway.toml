@@ -1,5 +1,5 @@
 [railway]
-command = "npm install && npm run build && npm start"
+command = "npm install --include=dev && npm run build && npm start"
 nodeVersion = "20"
 
 [deploy]
