@@ -1,29 +1,23 @@
-# Root Dockerfile — Railway deploys entire repo
-FROM node:20-alpine AS builder
+FROM node:20-alpine
 
 WORKDIR /app
 
 # Copy backend files
-COPY backend/package*.json ./backend/
-COPY backend/tsconfig.json ./backend/
-COPY backend/src ./backend/src
+COPY backend/package*.json ./
+
+# Install deps (all, since builder stage failed)
+RUN npm install
+
+# Copy source + build
+COPY backend/src ./src
+COPY backend/tsconfig.json ./
 
 # Build TypeScript
-WORKDIR /app/backend
-RUN npm install --legacy-peer-deps && npx tsc --noEmit false
+RUN npx tsc
 
-# ─────────────────────────────────────────────
-FROM node:20-alpine AS runtime
-
-WORKDIR /app
-
-# Install production deps
-COPY backend/package*.json ./
-RUN npm install --omit=dev --legacy-peer-deps
-
-# Copy built output + source
-COPY --from=builder /app/backend/dist ./dist
-COPY --from=builder /app/backend/src ./src
+# Copy built output
+COPY --from=0 /app/dist ./dist
+COPY --from=0 /app/node_modules ./node_modules
 
 # Create storage
 RUN mkdir -p /data/users && chmod 755 /data
@@ -33,8 +27,5 @@ ENV PORT=8080
 ENV STORAGE_ROOT=/data/users
 
 EXPOSE 8080
-
-# Clear npm cache in final image
-RUN npm cache clean --force
 
 CMD ["node", "dist/server.js"]
