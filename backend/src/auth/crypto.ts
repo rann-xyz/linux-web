@@ -35,15 +35,16 @@ export interface AuditEvent {
 // ─── Password Hashing (Argon2id via argon2, fallback bcrypt) ───────────────
 
 export async function hashPassword(password: string): Promise<string> {
-  // Use bcrypt as fallback (Argon2 requires native module)
-  const bcrypt = await import('bcryptjs');
-  return bcrypt.hash(password, BCRYPT_ROUNDS);
+  const bcrypt: any = await import('bcryptjs');
+  const bcryptFn = bcrypt.default || bcrypt;
+  return bcryptFn.hash(password, BCRYPT_ROUNDS);
 }
 
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
   try {
-    const bcrypt = await import('bcryptjs');
-    return bcrypt.compare(password, hash);
+    const bcrypt: any = await import('bcryptjs');
+    const bcryptFn = bcrypt.default || bcrypt;
+    return bcryptFn.compare(password, hash);
   } catch {
     return false;
   }
