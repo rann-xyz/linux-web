@@ -1,12 +1,18 @@
 {
-  "name": "terminal-backend",
+  "name": "web-terminal",
   "version": "1.0.0",
-  "type": "module",
+  "private": true,
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "build": "tsc",
-    "start": "node dist/server.js"
+    "dev": "cd backend && npm run dev",
+    "build": "cd backend && npm run build",
+    "start": "cd backend && npm start",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build:frontend": "cd frontend && npm run build"
   },
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
@@ -16,18 +22,5 @@
     "pg": "^8.11.3",
     "uuid": "^9.0.1",
     "ws": "^8.16.0"
-  },
-  "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/cors": "^2.8.17",
-    "@types/dockerode": "^3.3.23",
-    "@types/express": "^4.17.21",
-    "@types/jsonwebtoken": "^9.0.5",
-    "@types/node": "^20.10.0",
-    "@types/pg": "^8.10.9",
-    "@types/uuid": "^9.0.7",
-    "@types/ws": "^8.5.10",
-    "tsx": "^4.7.0",
-    "typescript": "^5.3.3"
   }
 }
