@@ -1,6 +1,0 @@
-[railway]
-command = "npm install --include=dev && npm run build && npm start"
-nodeVersion = "20"
-
-[deploy]
-region = "ams"
