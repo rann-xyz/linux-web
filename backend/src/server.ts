@@ -1,8 +1,8 @@
-import Fastify, { FastifyInstance } from 'fastify';
+import Fastify from 'fastify';
 import fastifyCors from '@fastify/cors';
 import fastifyHelmet from '@fastify/helmet';
 import fastifyRateLimit from '@fastify/rate-limit';
-import { createServer, Server } from 'http';
+import { createServer } from 'http';
 import { db } from './database/index.js';
 import { register, login, logout, getUserFromToken, verifyAdmin } from './auth/service.js';
 import { setupWebSocket, getConnectionStats } from './websocket/index.js';
@@ -10,17 +10,18 @@ import { listFiles, createDirectory, deleteFile, renameFile, getFileStream } fro
 import { getOrCreateContainer, terminateContainer, getStorageUsage, getContainerStats } from './containers/index.js';
 import { sanitizeFilename } from './filesystem/index.js';
 import * as fs from 'fs/promises';
-import * as path from 'path';
+import * as nodePath from 'path';
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const PORT = parseInt(process.env.PORT || '4000', 10);
 const HOST = '0.0.0.0';
 
-// ─── Initialize Database ────────────────────────────────────────────────────
-
 async function initDatabase() {
   try {
-    const schema = await fs.readFile(path.join(process.cwd(), 'src', 'database', 'schema.sql'), 'utf-8');
+    const schema = await fs.readFile(
+      nodePath.join(process.cwd(), 'src', 'database', 'schema.sql'),
+      'utf-8'
+    );
     const statements = schema.split(';').filter(s => s.trim());
     for (const stmt of statements) {
       if (stmt.trim()) {
@@ -36,24 +37,19 @@ async function initDatabase() {
   }
 }
 
-// ─── Build Fastify App ───────────────────────────────────────────────────────
-
-async function buildApp(): Promise<FastifyInstance> {
+async function buildApp() {
   const app = Fastify({ logger: true });
 
-  // Security headers
   await app.register(fastifyHelmet, {
-    contentSecurityPolicy: false, // Disabled for WebSocket compatibility
+    contentSecurityPolicy: false,
   });
 
-  // CORS
   await app.register(fastifyCors, {
     origin: FRONTEND_URL,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   });
 
-  // Rate limiting
   await app.register(fastifyRateLimit, {
     max: 100,
     timeWindow: '15 minute',
@@ -82,10 +78,8 @@ async function buildApp(): Promise<FastifyInstance> {
 
   // ─── Routes ─────────────────────────────────────────────────────────────────
 
-  // Health check
   app.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
 
-  // Register
   app.post('/api/auth/register', async (request: any, reply: any) => {
     const { email, password } = request.body || {};
     if (!email || !password) {
@@ -98,7 +92,6 @@ async function buildApp(): Promise<FastifyInstance> {
     return reply.code(201).send(result);
   });
 
-  // Login
   app.post('/api/auth/login', async (request: any, reply: any) => {
     const { email, password } = request.body || {};
     const ip = (request.headers['x-forwarded-for'] as string) || 'unknown';
@@ -112,7 +105,6 @@ async function buildApp(): Promise<FastifyInstance> {
     return reply.send(result);
   });
 
-  // Logout
   app.post('/api/auth/logout', async (request: any, reply: any) => {
     const token = request.headers.authorization?.replace('Bearer ', '');
     if (!token) {
@@ -122,7 +114,6 @@ async function buildApp(): Promise<FastifyInstance> {
     return reply.send({ success: true });
   });
 
-  // Get current user
   app.get('/api/auth/me', async (request: any, reply: any) => {
     const user = await authenticate(request, reply);
     if (!user) return;
@@ -131,7 +122,6 @@ async function buildApp(): Promise<FastifyInstance> {
 
   // ─── Terminal Routes ─────────────────────────────────────────────────────────
 
-  // Create terminal session
   app.post('/api/terminal/session', async (request: any, reply: any) => {
     const user = await authenticate(request, reply);
     if (!user) return;
@@ -148,7 +138,6 @@ async function buildApp(): Promise<FastifyInstance> {
     }
   });
 
-  // Delete terminal session
   app.delete('/api/terminal/session/:id', async (request: any, reply: any) => {
     const user = await authenticate(request, reply);
     if (!user) return;
@@ -161,7 +150,6 @@ async function buildApp(): Promise<FastifyInstance> {
     return reply.send({ success: true });
   });
 
-  // Get terminal connection stats
   app.get('/api/terminal/stats', async (request: any, reply: any) => {
     const user = await authenticate(request, reply);
     if (!user) return;
@@ -184,7 +172,6 @@ async function buildApp(): Promise<FastifyInstance> {
 
   // ─── File Routes ─────────────────────────────────────────────────────────────
 
-  // List files
   app.get('/api/files', async (request: any, reply: any) => {
     const user = await authenticate(request, reply);
     if (!user) return;
@@ -198,7 +185,6 @@ async function buildApp(): Promise<FastifyInstance> {
     }
   });
 
-  // Create directory
   app.post('/api/files/mkdir', async (request: any, reply: any) => {
     const user = await authenticate(request, reply);
     if (!user) return;
@@ -216,7 +202,6 @@ async function buildApp(): Promise<FastifyInstance> {
     }
   });
 
-  // Delete file/directory
   app.delete('/api/files', async (request: any, reply: any) => {
     const user = await authenticate(request, reply);
     if (!user) return;
@@ -234,7 +219,6 @@ async function buildApp(): Promise<FastifyInstance> {
     }
   });
 
-  // Rename file/directory
   app.post('/api/files/rename', async (request: any, reply: any) => {
     const user = await authenticate(request, reply);
     if (!user) return;
@@ -252,7 +236,6 @@ async function buildApp(): Promise<FastifyInstance> {
     }
   });
 
-  // Download file
   app.get('/api/files/download', async (request: any, reply: any) => {
     const user = await authenticate(request, reply);
     if (!user) return;
@@ -272,7 +255,6 @@ async function buildApp(): Promise<FastifyInstance> {
     }
   });
 
-  // Upload file (simple version without multipart)
   app.post('/api/files/upload', async (request: any, reply: any) => {
     const user = await authenticate(request, reply);
     if (!user) return;
@@ -283,7 +265,7 @@ async function buildApp(): Promise<FastifyInstance> {
     }
 
     const safeFilename = sanitizeFilename(filename);
-    const uploadPath = path.join(process.env.STORAGE_ROOT || '/data/users', user.id, safeFilename);
+    const uploadPath = nodePath.join(process.env.STORAGE_ROOT || '/data/users', user.id, safeFilename);
 
     try {
       const buffer = Buffer.from(content, 'base64');
@@ -300,7 +282,6 @@ async function buildApp(): Promise<FastifyInstance> {
     const user = await authenticate(request, reply);
     if (!user) return;
 
-    // Get container stats for this user
     try {
       const { containerId } = await getOrCreateContainer(user.id);
       const containerStats = await getContainerStats(containerId);
@@ -352,7 +333,6 @@ async function buildApp(): Promise<FastifyInstance> {
   app.setErrorHandler((error, request, reply) => {
     app.log.error(error);
 
-    // Don't expose stack traces in production
     if (process.env.NODE_ENV === 'production') {
       return reply.code(500).send({ error: 'Internal server error' });
     }
@@ -367,25 +347,24 @@ async function buildApp(): Promise<FastifyInstance> {
   return app;
 }
 
-// ─── Start Server ────────────────────────────────────────────────────────────
-
 async function start() {
   try {
     const app = await buildApp();
 
-    // Create HTTP server from Fastify instance
-    const server: Server = createServer(app as any);
+    const server = createServer();
     setupWebSocket(server);
+
+    // Attach Fastify request handler
+    server.on('request', app as any);
 
     server.listen({ port: PORT, host: HOST }, async () => {
       console.log(`🚀 Backend running on http://${HOST}:${PORT}`);
       console.log(`📡 WebSocket ready at ws://${HOST}:${PORT}/api/terminal`);
 
-      // Initialize database
       try {
         await initDatabase();
         console.log('✅ Database initialized');
-      } catch (err) {
+      } catch {
         console.log('⚠️  Database initialization skipped (may already exist)');
       }
     });

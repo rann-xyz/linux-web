@@ -2,7 +2,7 @@ import Docker from 'dockerode';
 import { db } from '../database/index.js';
 import { AUDIT_EVENTS } from '../auth/crypto.js';
 import * as fs from 'fs/promises';
-import * as path from 'path';
+import * as nodePath from 'path';
 
 const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
@@ -17,7 +17,6 @@ export interface ContainerInfo {
 }
 
 export async function getOrCreateContainer(userId: string): Promise<{ containerId: string; container: Docker.Container }> {
-  // Check if user already has a container
   const existingResult = await db.query(
     `SELECT container_id FROM terminal_sessions
      WHERE user_id = $1 AND status = 'ACTIVE'
@@ -34,13 +33,12 @@ export async function getOrCreateContainer(userId: string): Promise<{ containerI
         return { containerId, container };
       }
     } catch {
-      // Container doesn't exist or not running, create new one
+      // Container doesn't exist or not running
     }
   }
 
-  // Create new container
   const containerName = `terminal-user-${userId.slice(0, 8)}`;
-  const userStoragePath = `${STORAGE_ROOT}/${userId}`;
+  const userStoragePath = nodePath.join(STORAGE_ROOT, userId);
 
   const config: Docker.ContainerCreateOptions = {
     name: containerName,
@@ -56,7 +54,7 @@ export async function getOrCreateContainer(userId: string): Promise<{ containerI
     StdinOnce: false,
     HostConfig: {
       Memory: parseInt(process.env.MAX_MEMORY_MB || '512', 10) * 1024 * 1024,
-      NanoCpus: parseInt(process.env.MAX_CPU_CORES || '1', 10) * 1e9,
+      NanoCpus: Math.floor(parseFloat(process.env.MAX_CPU_CORES || '1') * 1e9),
       PidsLimit: parseInt(process.env.MAX_PROCESSES || '50', 10),
       Binds: [`${userStoragePath}:/home/user:rw`],
       CapDrop: ['ALL'],
@@ -68,20 +66,17 @@ export async function getOrCreateContainer(userId: string): Promise<{ containerI
   const container = await docker.createContainer(config);
   await container.start();
 
-  // Store in database
   await db.query(
     `INSERT INTO terminal_sessions (user_id, container_id, status, created_at, last_activity)
      VALUES ($1, $2, 'ACTIVE', NOW(), NOW())`,
     [userId, container.id]
   );
 
-  // Audit log
   await db.query(
     `INSERT INTO audit_logs (user_id, event, metadata) VALUES ($1, $2, $3)`,
     [userId, AUDIT_EVENTS.CONTAINER_CREATED, JSON.stringify({ container_id: container.id, container_name: containerName })]
   );
 
-  // Create default directories
   try {
     const exec = await container.exec({
       Cmd: ['bash', '-c', 'mkdir -p projects documents downloads && echo "Initialized"'],
@@ -89,7 +84,7 @@ export async function getOrCreateContainer(userId: string): Promise<{ containerI
       AttachStderr: true,
     });
     await exec.start({ hijack: true, stdin: false });
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise<void>((resolve) => setTimeout(resolve, 500));
   } catch {
     // Ignore exec errors
   }
@@ -152,7 +147,7 @@ export async function listUserContainers(userId: string): Promise<ContainerInfo[
     [userId]
   );
 
-  return result.rows.map(row => ({
+  return result.rows.map((row) => ({
     id: row.id as string,
     userId: row.user_id as string,
     name: `terminal-user-${(row.user_id as string).slice(0, 8)}`,
@@ -162,12 +157,12 @@ export async function listUserContainers(userId: string): Promise<ContainerInfo[
 }
 
 export async function ensureStorageDirectory(userId: string): Promise<string> {
-  const userStoragePath = path.join(STORAGE_ROOT, userId);
+  const userStoragePath = nodePath.join(STORAGE_ROOT, userId);
 
   try {
-    await fs.mkdir(path.join(userStoragePath, 'projects'), { recursive: true });
-    await fs.mkdir(path.join(userStoragePath, 'documents'), { recursive: true });
-    await fs.mkdir(path.join(userStoragePath, 'downloads'), { recursive: true });
+    await fs.mkdir(nodePath.join(userStoragePath, 'projects'), { recursive: true });
+    await fs.mkdir(nodePath.join(userStoragePath, 'documents'), { recursive: true });
+    await fs.mkdir(nodePath.join(userStoragePath, 'downloads'), { recursive: true });
   } catch {
     // Directories may already exist
   }
@@ -176,7 +171,7 @@ export async function ensureStorageDirectory(userId: string): Promise<string> {
 }
 
 export async function getStorageUsage(userId: string): Promise<{ used: number; total: number }> {
-  const userStoragePath = path.join(STORAGE_ROOT, userId);
+  const userStoragePath = nodePath.join(STORAGE_ROOT, userId);
   const maxStorageGB = parseFloat(process.env.MAX_STORAGE_GB || '5');
 
   try {
@@ -197,7 +192,7 @@ async function getDirectorySize(dir: string): Promise<number> {
     const entries = await fs.readdir(dir, { withFileTypes: true });
 
     for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
+      const fullPath = nodePath.join(dir, entry.name);
 
       if (entry.isDirectory()) {
         size += await getDirectorySize(fullPath);

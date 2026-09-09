@@ -1,7 +1,6 @@
-import * as path from 'path';
+import * as nodePath from 'path';
 import * as fs from 'fs/promises';
 import { createReadStream } from 'fs';
-import { ReadStream } from 'fs';
 
 const STORAGE_ROOT = process.env.STORAGE_ROOT || '/data/users';
 
@@ -20,28 +19,21 @@ export interface PathValidationResult {
   resolvedPath?: string;
 }
 
-// ─── Path Validation (Prevent Directory Traversal) ─────────────────────────
+function validateUserPath(userId: string, requestedPath: string): PathValidationResult {
+  const normalized = nodePath.normalize(requestedPath).replace(/^(\.\.(\/|\\|$))+/, '');
 
-export function validateUserPath(userId: string, requestedPath: string): PathValidationResult {
-  // Normalize the requested path
-  const normalized = path.normalize(requestedPath).replace(/^(\.\.(\/|\\|$))+/, '');
+  const userRoot = nodePath.join(STORAGE_ROOT, userId);
+  const fullPath = nodePath.join(userRoot, normalized);
 
-  // Build the full path
-  const userRoot = path.join(STORAGE_ROOT, userId);
-  const fullPath = path.join(userRoot, normalized);
+  const resolved = nodePath.resolve(fullPath);
 
-  // Resolve to absolute path and verify it's within user root
-  const resolved = path.resolve(fullPath);
-
-  // Security check: ensure resolved path starts with user root
-  if (!resolved.startsWith(userRoot + path.sep) && resolved !== userRoot) {
+  if (!resolved.startsWith(userRoot + nodePath.sep) && resolved !== userRoot) {
     return {
       valid: false,
       error: 'Access denied: path outside user storage',
     };
   }
 
-  // Check for dangerous patterns
   const dangerousPatterns = [
     /^\.\./,
     /\.\.\//,
@@ -52,7 +44,7 @@ export function validateUserPath(userId: string, requestedPath: string): PathVal
     /\/proc\//,
     /\/sys\//,
     /^\//,
-    /^[A-Z]:\\/i,  // Windows absolute paths
+    /^[A-Z]:\\/i,
   ];
 
   for (const pattern of dangerousPatterns) {
@@ -70,7 +62,21 @@ export function validateUserPath(userId: string, requestedPath: string): PathVal
   };
 }
 
-// ─── File Operations ────────────────────────────────────────────────────────
+function getPermissions(mode: number): string {
+  const chars = 'rwxrwxrwx';
+  const bits = [
+    (mode >> 8) & 1 ? 1 : 0,
+    (mode >> 7) & 1 ? 1 : 0,
+    (mode >> 6) & 1 ? 1 : 0,
+    (mode >> 5) & 1 ? 1 : 0,
+    (mode >> 4) & 1 ? 1 : 0,
+    (mode >> 3) & 1 ? 1 : 0,
+    (mode >> 2) & 1 ? 1 : 0,
+    (mode >> 1) & 1 ? 1 : 0,
+    (mode >> 0) & 1 ? 1 : 0,
+  ];
+  return bits.map((bit, i) => bit ? chars[i] : '-').join('');
+}
 
 export async function listFiles(userId: string, dirPath: string = ''): Promise<FileInfo[]> {
   const validation = validateUserPath(userId, dirPath);
@@ -85,13 +91,13 @@ export async function listFiles(userId: string, dirPath: string = ''): Promise<F
     const files: FileInfo[] = [];
 
     for (const entry of entries) {
-      const entryPath = path.join(targetPath, entry.name);
+      const entryPath = nodePath.join(targetPath, entry.name);
 
       try {
         const stat = await fs.stat(entryPath);
         files.push({
           name: entry.name,
-          path: path.relative(path.join(STORAGE_ROOT, userId), entryPath),
+          path: nodePath.relative(nodePath.join(STORAGE_ROOT, userId), entryPath),
           isDirectory: entry.isDirectory(),
           size: stat.size,
           modifiedAt: stat.mtime,
@@ -102,7 +108,6 @@ export async function listFiles(userId: string, dirPath: string = ''): Promise<F
       }
     }
 
-    // Sort: directories first, then by name
     files.sort((a, b) => {
       if (a.isDirectory && !b.isDirectory) return -1;
       if (!a.isDirectory && b.isDirectory) return 1;
@@ -175,7 +180,6 @@ export async function readFileContent(userId: string, filePath: string): Promise
     if (stat.isDirectory()) {
       throw new Error('Cannot read directory');
     }
-    // Limit file size to 1MB
     if (stat.size > 1024 * 1024) {
       throw new Error('File too large (max 1MB)');
     }
@@ -198,7 +202,7 @@ export async function writeFileContent(userId: string, filePath: string, content
   }
 }
 
-export async function getFileStream(userId: string, filePath: string): Promise<{ stream: ReadStream; filename: string; size: number }> {
+export async function getFileStream(userId: string, filePath: string): Promise<{ stream: ReturnType<typeof createReadStream>; filename: string; size: number }> {
   const validation = validateUserPath(userId, filePath);
   if (!validation.valid) {
     throw new Error(validation.error);
@@ -211,25 +215,12 @@ export async function getFileStream(userId: string, filePath: string): Promise<{
 
   return {
     stream: createReadStream(validation.resolvedPath!),
-    filename: path.basename(validation.resolvedPath!),
+    filename: nodePath.basename(validation.resolvedPath!),
     size: stat.size,
   };
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function getPermissions(mode: number): string {
-  const chars = 'rwxrwxrwx';
-  let perms = '';
-  for (let i = 0; i < 9; i++) {
-    const bit = (mode >> (8 - i)) & 1;
-    perms += bit ? chars[i] : '-';
-  }
-  return perms;
-}
-
 export function sanitizeFilename(filename: string): string {
-  // Remove path components and dangerous characters
   return filename
     .replace(/[\/\\..]/g, '')
     .replace(/[<>:"|?*\x00-\x1f]/g, '')

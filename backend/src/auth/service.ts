@@ -24,28 +24,23 @@ export interface AuthResult {
 }
 
 export async function register(email: string, password: string): Promise<AuthResult> {
-  // Validate email
   if (!isValidEmail(email)) {
     return { success: false, error: 'Invalid email format' };
   }
 
-  // Validate password
   const passwordCheck = isValidPassword(password);
   if (!passwordCheck.valid) {
     return { success: false, error: passwordCheck.error! };
   }
 
   try {
-    // Check if user exists
     const existing = await db.query('SELECT id FROM users WHERE email = $1', [email]);
     if (existing.rows.length > 0) {
       return { success: false, error: 'Email already registered' };
     }
 
-    // Hash password
     const passwordHash = await hashPassword(password);
 
-    // Insert user
     const result = await db.query(
       `INSERT INTO users (email, password_hash, role, status, email_verified, created_at, updated_at)
        VALUES ($1, $2, 'USER', 'ACTIVE', false, NOW(), NOW())
@@ -55,7 +50,6 @@ export async function register(email: string, password: string): Promise<AuthRes
 
     const user = mapRowToUser(result.rows[0]);
 
-    // Audit log
     await db.query(
       `INSERT INTO audit_logs (user_id, event, metadata) VALUES ($1, $2, $3)`,
       [user.id, AUDIT_EVENTS.REGISTER, JSON.stringify({ email: user.email })]
@@ -70,9 +64,6 @@ export async function register(email: string, password: string): Promise<AuthRes
 
 export async function login(email: string, password: string, ip: string = 'unknown'): Promise<AuthResult> {
   try {
-    // Rate limiting happens at the route level
-
-    // Find user
     const result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
     if (result.rows.length === 0) {
       await logLoginFailure(null, email, ip, 'user_not_found');
@@ -82,27 +73,23 @@ export async function login(email: string, password: string, ip: string = 'unkno
     const userRow = result.rows[0];
     const user = mapRowToUser(userRow);
 
-    // Check if account is active
     if (user.status !== 'ACTIVE') {
       await logLoginFailure(user.id, email, ip, 'account_' + user.status.toLowerCase());
       return { success: false, error: 'Account is not active' };
     }
 
-    // Verify password
     const validPassword = await verifyPassword(password, userRow.password_hash as string);
     if (!validPassword) {
       await logLoginFailure(user.id, email, ip, 'invalid_password');
       return { success: false, error: 'Invalid email or password' };
     }
 
-    // Create session token
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
 
-    // Store session hash
     const tokenHash = await hashToken(token);
     const expiresAt = calculateExpiresAt();
 
@@ -112,10 +99,8 @@ export async function login(email: string, password: string, ip: string = 'unkno
       [user.id, tokenHash, expiresAt]
     );
 
-    // Update last activity
     await db.query('UPDATE users SET updated_at = NOW() WHERE id = $1', [user.id]);
 
-    // Audit log
     await db.query(
       `INSERT INTO audit_logs (user_id, event, metadata) VALUES ($1, $2, $3)`,
       [user.id, AUDIT_EVENTS.LOGIN_SUCCESS, JSON.stringify({ ip })]
@@ -155,7 +140,6 @@ export async function getUserFromToken(token: string): Promise<User | null> {
     const decoded = verifyToken(token);
     if (!decoded) return null;
 
-    // Verify session is valid
     const sessionResult = await db.query(
       `SELECT * FROM sessions
        WHERE user_id = $1 AND revoked_at IS NULL
@@ -167,22 +151,18 @@ export async function getUserFromToken(token: string): Promise<User | null> {
 
     const session = sessionResult.rows[0];
 
-    // Check expiration
     if (isSessionExpired(new Date(session.expires_at as Date))) {
       await db.query('UPDATE sessions SET revoked_at = NOW() WHERE id = $1', [session.id]);
       return null;
     }
 
-    // Check idle timeout
     if (isSessionIdle(new Date(session.last_activity as Date))) {
       await db.query('UPDATE sessions SET revoked_at = NOW() WHERE id = $1', [session.id]);
       return null;
     }
 
-    // Update last activity
     await db.query('UPDATE sessions SET last_activity = NOW() WHERE id = $1', [session.id]);
 
-    // Get user
     const userResult = await db.query(
       'SELECT * FROM users WHERE id = $1 AND status = $2',
       [decoded.userId, 'ACTIVE']

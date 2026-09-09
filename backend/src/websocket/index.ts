@@ -2,9 +2,10 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { IncomingMessage } from 'http';
 import { getUserFromToken } from '../auth/service.js';
 import { getOrCreateContainer, getContainerStats } from '../containers/index.js';
-import { spawn, execSync, ChildProcess } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import { AUDIT_EVENTS } from '../auth/crypto.js';
 import { db } from '../database/index.js';
+import { ChildProcess } from 'child_process';
 
 interface TerminalConnection {
   ws: WebSocket;
@@ -31,7 +32,6 @@ export function setupWebSocket(server: import('http').Server): void {
       return;
     }
 
-    // Verify token
     const user = await getUserFromToken(token);
     if (!user) {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
@@ -44,11 +44,10 @@ export function setupWebSocket(server: import('http').Server): void {
     });
   });
 
-  wss.on('connection', async (ws: WebSocket, request: IncomingMessage, userId: string) => {
+  wss.on('connection', async (ws: WebSocket, _request: IncomingMessage, userId: string) => {
     let currentConnection: TerminalConnection | null = null;
 
     try {
-      // Get or create container for user
       const { containerId } = await getOrCreateContainer(userId);
 
       currentConnection = {
@@ -59,7 +58,6 @@ export function setupWebSocket(server: import('http').Server): void {
       };
       connections.set(userId, currentConnection);
 
-      // Start bash process inside the container using docker exec
       const proc = spawn('docker', [
         'exec', '-i', containerId,
         '/bin/bash', '-li'
@@ -74,7 +72,6 @@ export function setupWebSocket(server: import('http').Server): void {
 
       currentConnection.process = proc;
 
-      // Handle output from container
       proc.stdout?.on('data', (data: Buffer) => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'output', data: data.toString() }));
@@ -101,13 +98,11 @@ export function setupWebSocket(server: import('http').Server): void {
         }
       });
 
-      // Log terminal creation
       await db.query(
         `INSERT INTO audit_logs (user_id, event, metadata) VALUES ($1, $2, $3)`,
         [userId, AUDIT_EVENTS.TERMINAL_CREATED, JSON.stringify({ container_id: containerId })]
       );
 
-      // Send initial output
       ws.send(JSON.stringify({ type: 'ready', containerId }));
 
     } catch (err) {
@@ -116,7 +111,6 @@ export function setupWebSocket(server: import('http').Server): void {
       ws.close();
     }
 
-    // Handle incoming messages
     ws.on('message', (message: Buffer) => {
       try {
         const msg = JSON.parse(message.toString());
@@ -129,11 +123,12 @@ export function setupWebSocket(server: import('http').Server): void {
             break;
 
           case 'resize':
-            // xterm.js sends cols and rows
-            // Use docker exec resize command if available
             if (currentConnection?.containerId) {
               try {
-                execSync(`docker exec ${currentConnection.containerId} resize -s ${msg.rows} ${msg.cols} 2>/dev/null || true`);
+                execSync(
+                  `docker exec ${currentConnection.containerId} resize -s ${msg.rows} ${msg.cols} 2>/dev/null || true`,
+                  { timeout: 1000 }
+                );
               } catch {
                 // Ignore resize errors
               }
@@ -159,13 +154,12 @@ export function setupWebSocket(server: import('http').Server): void {
     });
   });
 
-  // Heartbeat to keep connections alive
   setInterval(() => {
-    connections.forEach((conn, userId) => {
+    connections.forEach((conn, uid) => {
       if (conn.ws.readyState === WebSocket.OPEN) {
         conn.ws.ping();
       } else {
-        cleanupConnection(userId);
+        cleanupConnection(uid);
       }
     });
   }, 30000);

@@ -9,7 +9,6 @@ export const db = new Pool({
   connectionTimeoutMillis: 2000,
 });
 
-// Test connection on startup
 db.on('error', (err) => {
   console.error('Unexpected database error:', err);
 });
