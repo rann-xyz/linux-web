@@ -249,7 +249,7 @@ app.get('/api/files/download', authenticate as any, async (req: Request, res: Re
   try {
     const { stream, filename, size } = await getFileStream((req as any).user.id, filePath as string);
     res.header('Content-Disposition', `attachment; filename="${filename}"`);
-    res.header('Content-Length', size);
+    res.header('Content-Length', String(size));
     return stream.pipe(res);
   } catch (err) { return res.status(400).json({ error: (err as Error).message }); }
 });
