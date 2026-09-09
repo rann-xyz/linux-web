@@ -1,7 +1,6 @@
 [railway]
-command = "node dist/server.js"
+command = "cd backend && npm install && npx tsc && node dist/server.js"
 nodeVersion = "20"
 
 [deploy]
 region = "ams"
-source = "backend"
