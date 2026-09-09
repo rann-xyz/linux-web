@@ -1,9 +1,7 @@
-import Fastify from 'fastify';
-import fastifyCors from '@fastify/cors';
-import fastifyHelmet from '@fastify/helmet';
-import fastifyRateLimit from '@fastify/rate-limit';
-import { WebSocketServer } from 'ws';
+import express, { Request, Response, NextFunction } from 'express';
+import cors from 'cors';
 import { createServer, Server } from 'http';
+import { WebSocketServer } from 'ws';
 import { db } from './database/index.js';
 import { register, login, logout, getUserFromToken, verifyAdmin } from './auth/service.js';
 import { getOrCreateContainer, terminateContainer, getStorageUsage, getContainerStats } from './containers/index.js';
@@ -45,16 +43,21 @@ function setupWebSocket(server: Server): void {
       return;
     }
 
-    const user = await getUserFromToken(token);
-    if (!user) {
+    try {
+      const user = await getUserFromToken(token);
+      if (!user) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request, user.id);
+      });
+    } catch (err) {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
       socket.destroy();
-      return;
     }
-
-    wss.handleUpgrade(request, socket, head, (ws) => {
-      wss.emit('connection', ws, request, user.id);
-    });
   });
 
   wss.on('connection', async (ws: any, _request: any, userId: string) => {
@@ -142,195 +145,162 @@ async function getConnectionStats(userId: string) {
   return { connected: conn.ws.readyState === 1, containerId: conn.containerId, cpu: stats.cpu, memory: stats.memory };
 }
 
+// ─── Middleware ──────────────────────────────────────────────────────────────
+
+function authenticate(request: Request, reply: Response, next: NextFunction) {
+  const token = request.headers.authorization?.replace('Bearer ', '');
+  if (!token) return reply.status(401).json({ error: 'Authentication required' });
+
+  getUserFromToken(token).then(user => {
+    if (!user) return reply.status(401).json({ error: 'Invalid or expired token' });
+    (request as any).user = user;
+    next();
+  }).catch(() => {
+    reply.status(401).json({ error: 'Authentication failed' });
+  });
+}
+
+// ─── Routes ──────────────────────────────────────────────────────────────────
+
+const app = express();
+app.use(cors({ origin: FRONTEND_URL, credentials: true }));
+app.use(express.json({ limit: '10mb' }));
+
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.post('/api/auth/register', async (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+  const result = await register(email, password);
+  return result.success ? res.status(201).json(result) : res.status(400).json(result);
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body || {};
+  const ip = (req.headers['x-forwarded-for'] as string) || 'unknown';
+  if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+  const result = await login(email, password, ip);
+  return result.success ? res.json(result) : res.status(401).json(result);
+});
+
+app.post('/api/auth/logout', async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(400).json({ error: 'Missing token' });
+  await logout(token);
+  res.json({ success: true });
+});
+
+app.get('/api/auth/me', authenticate as any, async (req: Request, res: Response) => {
+  res.json({ user: (req as any).user });
+});
+
+app.post('/api/terminal/session', authenticate as any, async (req: Request, res: Response) => {
+  try {
+    const { containerId } = await getOrCreateContainer((req as any).user.id);
+    return res.status(201).json({ sessionId: containerId, containerId, status: 'active' });
+  } catch { return res.status(500).json({ error: 'Failed to create terminal session' }); }
+});
+
+app.delete('/api/terminal/session/:id', authenticate as any, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const ok = await terminateContainer(id, (req as any).user.id);
+  return ok ? res.json({ success: true }) : res.status(404).json({ error: 'Session not found' });
+});
+
+app.get('/api/terminal/stats', authenticate as any, async (req: Request, res: Response) => {
+  const stats = await getConnectionStats((req as any).user.id);
+  if (!stats) return res.json({ connected: false });
+  const storage = await getStorageUsage((req as any).user.id);
+  return res.json({ connected: stats.connected, containerId: stats.containerId, cpu: stats.cpu, memory: stats.memory, storage });
+});
+
+app.get('/api/files', authenticate as any, async (req: Request, res: Response) => {
+  const dir = (req.query.dir as string) || '';
+  try { return res.json({ files: await listFiles((req as any).user.id, dir) }); }
+  catch (err) { return res.status(400).json({ error: (err as Error).message }); }
+});
+
+app.post('/api/files/mkdir', authenticate as any, async (req: Request, res: Response) => {
+  const { path: dirPath } = req.body || {};
+  if (!dirPath) return res.status(400).json({ error: 'Path is required' });
+  try { await createDirectory((req as any).user.id, dirPath); return res.status(201).json({ success: true }); }
+  catch (err) { return res.status(400).json({ error: (err as Error).message }); }
+});
+
+app.delete('/api/files', authenticate as any, async (req: Request, res: Response) => {
+  const { path: filePath } = req.query || {};
+  if (!filePath) return res.status(400).json({ error: 'Path is required' });
+  try { await deleteFile((req as any).user.id, filePath as string); return res.json({ success: true }); }
+  catch (err) { return res.status(400).json({ error: (err as Error).message }); }
+});
+
+app.post('/api/files/rename', authenticate as any, async (req: Request, res: Response) => {
+  const { oldPath, newPath } = req.body || {};
+  if (!oldPath || !newPath) return res.status(400).json({ error: 'oldPath and newPath are required' });
+  try { await renameFile((req as any).user.id, oldPath, newPath); return res.json({ success: true }); }
+  catch (err) { return res.status(400).json({ error: (err as Error).message }); }
+});
+
+app.get('/api/files/download', authenticate as any, async (req: Request, res: Response) => {
+  const { path: filePath } = req.query || {};
+  if (!filePath) return res.status(400).json({ error: 'Path is required' });
+  try {
+    const { stream, filename, size } = await getFileStream((req as any).user.id, filePath as string);
+    res.header('Content-Disposition', `attachment; filename="${filename}"`);
+    res.header('Content-Length', size);
+    return stream.pipe(res);
+  } catch (err) { return res.status(400).json({ error: (err as Error).message }); }
+});
+
+app.post('/api/files/upload', authenticate as any, async (req: Request, res: Response) => {
+  const { filename, content } = req.body || {};
+  if (!filename || !content) return res.status(400).json({ error: 'filename and content are required' });
+  const safeFilename = sanitizeFilename(filename);
+  const uploadPath = nodePath.join(process.env.STORAGE_ROOT || '/data/users', (req as any).user.id, safeFilename);
+  try {
+    await fs.writeFile(uploadPath, Buffer.from(content, 'base64'));
+    return res.status(201).json({ success: true, filename: safeFilename });
+  } catch { return res.status(500).json({ error: 'Upload failed' }); }
+});
+
+app.get('/api/system/info', authenticate as any, async (req: Request, res: Response) => {
+  try {
+    const { containerId } = await getOrCreateContainer((req as any).user.id);
+    const containerStats = await getContainerStats(containerId);
+    const storage = await getStorageUsage((req as any).user.id);
+    return res.json({ os: 'Ubuntu 24.04 LTS', cpuUsage: containerStats.cpu, memoryUsed: containerStats.memory.used, memoryTotal: containerStats.memory.limit, storageUsed: storage.used, storageTotal: storage.total, uptime: Math.floor(process.uptime()) });
+  } catch {
+    return res.json({ os: 'Ubuntu 24.04 LTS', cpuUsage: 0, memoryUsed: 0, memoryTotal: 0, storageUsed: 0, storageTotal: 5, uptime: Math.floor(process.uptime()) });
+  }
+});
+
+app.get('/api/admin/users', authenticate as any, async (req: Request, res: Response) => {
+  const isAdmin = await verifyAdmin(req.headers.authorization?.replace('Bearer ', '') || '');
+  if (!isAdmin) return res.status(403).json({ error: 'Admin access required' });
+  const result = await db.query(`SELECT id, email, role, status, email_verified, created_at FROM users ORDER BY created_at DESC LIMIT 100`);
+  return res.json({ users: result.rows });
+});
+
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  console.error('Server error:', err);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
 // ─── Start ───────────────────────────────────────────────────────────────────
 
 async function start() {
   try {
-    // Create HTTP server
-    const server: Server = createServer();
-
-    // Create Fastify instance WITHOUT logger to avoid double-output
-    const app = Fastify({ logger: false });
-
-    // Register plugins
-    await app.register(fastifyHelmet, { contentSecurityPolicy: false });
-    await app.register(fastifyCors, { origin: FRONTEND_URL, credentials: true, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'] });
-    await app.register(fastifyRateLimit, { max: 100, timeWindow: '15 minute', keyGenerator: (req: any) => (req.headers['x-forwarded-for'] as string) || req.ip });
-
-    // ─── Middleware ─────────────────────────────────────────────────────────
-
-    async function authenticate(request: any, reply: any) {
-      const token = request.headers.authorization?.replace('Bearer ', '');
-      if (!token) return reply.code(401).send({ error: 'Authentication required' }), null;
-      const user = await getUserFromToken(token);
-      if (!user) return reply.code(401).send({ error: 'Invalid or expired token' }), null;
-      return user;
-    }
-
-    // ─── Routes ─────────────────────────────────────────────────────────────
-
-    app.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
-
-    app.post('/api/auth/register', async (request: any, reply: any) => {
-      const { email, password } = request.body || {};
-      if (!email || !password) return reply.code(400).send({ error: 'Email and password are required' });
-      const result = await register(email, password);
-      return (!result.success ? reply.code(400) : reply.code(201)).send(result);
-    });
-
-    app.post('/api/auth/login', async (request: any, reply: any) => {
-      const { email, password } = request.body || {};
-      const ip = (request.headers['x-forwarded-for'] as string) || 'unknown';
-      if (!email || !password) return reply.code(400).send({ error: 'Email and password are required' });
-      const result = await login(email, password, ip);
-      return (!result.success ? reply.code(401) : reply).send(result);
-    });
-
-    app.post('/api/auth/logout', async (request: any, reply: any) => {
-      const token = request.headers.authorization?.replace('Bearer ', '');
-      if (!token) return reply.code(400).send({ error: 'Missing token' });
-      await logout(token);
-      return reply.send({ success: true });
-    });
-
-    app.get('/api/auth/me', async (request: any, reply: any) => {
-      const user = await authenticate(request, reply);
-      return user ? reply.send({ user }) : undefined;
-    });
-
-    app.post('/api/terminal/session', async (request: any, reply: any) => {
-      const user = await authenticate(request, reply);
-      if (!user) return;
-      try {
-        const { containerId } = await getOrCreateContainer(user.id);
-        return reply.code(201).send({ sessionId: containerId, containerId, status: 'active' });
-      } catch { return reply.code(500).send({ error: 'Failed to create terminal session' }); }
-    });
-
-    app.delete('/api/terminal/session/:id', async (request: any, reply: any) => {
-      const user = await authenticate(request, reply);
-      if (!user) return;
-      const { id } = request.params as { id: string };
-      const ok = await terminateContainer(id, user.id);
-      return ok ? reply.send({ success: true }) : reply.code(404).send({ error: 'Session not found' });
-    });
-
-    app.get('/api/terminal/stats', async (request: any, reply: any) => {
-      const user = await authenticate(request, reply);
-      if (!user) return;
-      const stats = await getConnectionStats(user.id);
-      if (!stats) return reply.send({ connected: false });
-      const storage = await getStorageUsage(user.id);
-      return reply.send({ connected: stats.connected, containerId: stats.containerId, cpu: stats.cpu, memory: stats.memory, storage });
-    });
-
-    app.get('/api/files', async (request: any, reply: any) => {
-      const user = await authenticate(request, reply);
-      if (!user) return;
-      const dir = (request.query.dir as string) || '';
-      try { return reply.send({ files: await listFiles(user.id, dir) }); }
-      catch (err) { return reply.code(400).send({ error: (err as Error).message }); }
-    });
-
-    app.post('/api/files/mkdir', async (request: any, reply: any) => {
-      const user = await authenticate(request, reply);
-      if (!user) return;
-      const { path: dirPath } = request.body || {};
-      if (!dirPath) return reply.code(400).send({ error: 'Path is required' });
-      try { await createDirectory(user.id, dirPath); return reply.code(201).send({ success: true }); }
-      catch (err) { return reply.code(400).send({ error: (err as Error).message }); }
-    });
-
-    app.delete('/api/files', async (request: any, reply: any) => {
-      const user = await authenticate(request, reply);
-      if (!user) return;
-      const { path: filePath } = request.query || {};
-      if (!filePath) return reply.code(400).send({ error: 'Path is required' });
-      try { await deleteFile(user.id, filePath as string); return reply.send({ success: true }); }
-      catch (err) { return reply.code(400).send({ error: (err as Error).message }); }
-    });
-
-    app.post('/api/files/rename', async (request: any, reply: any) => {
-      const user = await authenticate(request, reply);
-      if (!user) return;
-      const { oldPath, newPath } = request.body || {};
-      if (!oldPath || !newPath) return reply.code(400).send({ error: 'oldPath and newPath are required' });
-      try { await renameFile(user.id, oldPath, newPath); return reply.send({ success: true }); }
-      catch (err) { return reply.code(400).send({ error: (err as Error).message }); }
-    });
-
-    app.get('/api/files/download', async (request: any, reply: any) => {
-      const user = await authenticate(request, reply);
-      if (!user) return;
-      const { path: filePath } = request.query || {};
-      if (!filePath) return reply.code(400).send({ error: 'Path is required' });
-      try {
-        const { stream, filename, size } = await getFileStream(user.id, filePath as string);
-        return reply.header('Content-Disposition', `attachment; filename="${filename}"`).header('Content-Length', size).send(stream);
-      } catch (err) { return reply.code(400).send({ error: (err as Error).message }); }
-    });
-
-    app.post('/api/files/upload', async (request: any, reply: any) => {
-      const user = await authenticate(request, reply);
-      if (!user) return;
-      const { filename, content } = request.body || {};
-      if (!filename || !content) return reply.code(400).send({ error: 'filename and content are required' });
-      const safeFilename = sanitizeFilename(filename);
-      const uploadPath = nodePath.join(process.env.STORAGE_ROOT || '/data/users', user.id, safeFilename);
-      try {
-        await fs.writeFile(uploadPath, Buffer.from(content, 'base64'));
-        return reply.code(201).send({ success: true, filename: safeFilename });
-      } catch { return reply.code(500).send({ error: 'Upload failed' }); }
-    });
-
-    app.get('/api/system/info', async (request: any, reply: any) => {
-      const user = await authenticate(request, reply);
-      if (!user) return;
-      try {
-        const { containerId } = await getOrCreateContainer(user.id);
-        const containerStats = await getContainerStats(containerId);
-        const storage = await getStorageUsage(user.id);
-        return reply.send({ os: 'Ubuntu 24.04 LTS', cpuUsage: containerStats.cpu, memoryUsed: containerStats.memory.used, memoryTotal: containerStats.memory.limit, storageUsed: storage.used, storageTotal: storage.total, uptime: Math.floor(process.uptime()) });
-      } catch {
-        return reply.send({ os: 'Ubuntu 24.04 LTS', cpuUsage: 0, memoryUsed: 0, memoryTotal: 0, storageUsed: 0, storageTotal: 5, uptime: Math.floor(process.uptime()) });
-      }
-    });
-
-    app.get('/api/admin/users', async (request: any, reply: any) => {
-      const user = await authenticate(request, reply);
-      if (!user) return;
-      const isAdmin = await verifyAdmin(request.headers.authorization?.replace('Bearer ', '') || '');
-      if (!isAdmin) return reply.code(403).send({ error: 'Admin access required' });
-      const result = await db.query(`SELECT id, email, role, status, email_verified, created_at FROM users ORDER BY created_at DESC LIMIT 100`);
-      return reply.send({ users: result.rows });
-    });
-
-    app.setErrorHandler((error, _request, reply) => {
-      console.error('Fastify error:', error.message);
-      return reply.code(500).send({ error: 'Internal server error' });
-    });
-
-    // Attach Fastify to HTTP server (correct way for Fastify v4)
-    server.on('request', (req, res) => {
-      app rawHandler(req, res);
-    });
-
-    // Setup WebSocket
+    const server = createServer(app);
     setupWebSocket(server);
 
-    // Start listening
-    await new Promise<void>((resolve) => {
-      server.listen({ port: PORT, host: HOST }, () => {
-        console.log(`🚀 Backend running on http://${HOST}:${PORT}`);
-        console.log(`📡 WebSocket ready at ws://${HOST}:${PORT}/api/terminal`);
-        resolve();
-      });
+    server.listen({ port: PORT, host: HOST }, async () => {
+      console.log(`🚀 Backend running on http://${HOST}:${PORT}`);
+      console.log(`📡 WebSocket ready at ws://${HOST}:${PORT}/api/terminal`);
+      try { await initDatabase(); console.log('✅ Database initialized'); }
+      catch { console.log('⚠️  Database initialization skipped (may already exist)'); }
     });
-
-    // Initialize database
-    try { await initDatabase(); console.log('✅ Database initialized'); }
-    catch { console.log('⚠️  Database initialization skipped (may already exist)'); }
-
   } catch (err) {
     console.error('Failed to start server:', err);
     process.exit(1);
