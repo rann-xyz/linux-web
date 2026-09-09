@@ -58,7 +58,7 @@ export async function register(email: string, password: string): Promise<AuthRes
     return { success: true, user };
   } catch (err) {
     console.error('Registration error:', err);
-    return { success: false, error: 'Registration failed' };
+    return { success: false, error: 'Registration failed: ' + (err as Error).message };
   }
 }
 
