@@ -1,26 +1,16 @@
+# Simple single-stage Dockerfile
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy backend files
-COPY backend/package*.json ./
+# Copy entire repo (Railway deploys repo to /app)
+COPY . .
 
-# Install deps (all, since builder stage failed)
-RUN npm install
+# Install deps and build
+RUN cd backend && npm install && npx tsc
 
-# Copy source + build
-COPY backend/src ./src
-COPY backend/tsconfig.json ./
-
-# Build TypeScript
-RUN npx tsc
-
-# Copy built output
-COPY --from=0 /app/dist ./dist
-COPY --from=0 /app/node_modules ./node_modules
-
-# Create storage
-RUN mkdir -p /data/users && chmod 755 /data
+# Set working dir to backend for runtime
+WORKDIR /app/backend
 
 ENV NODE_ENV=production
 ENV PORT=8080
