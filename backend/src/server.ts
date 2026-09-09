@@ -144,12 +144,14 @@ async function initDatabase() {
 
 // ─── Build App ───────────────────────────────────────────────────────────────
 
-async function buildApp(): Promise<FastifyInstance> {
-  const app = Fastify({ logger: true });
+async function buildApp(server: Server): Promise<FastifyInstance> {
+  const app = Fastify();
 
   await app.register(fastifyHelmet, { contentSecurityPolicy: false });
   await app.register(fastifyCors, { origin: FRONTEND_URL, credentials: true, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'] });
   await app.register(fastifyRateLimit, { max: 100, timeWindow: '15 minute', keyGenerator: (req) => (req.headers['x-forwarded-for'] as string) || req.ip });
+
+  // ─── Middleware ───────────────────────────────────────────────────────────
 
   async function authenticate(request: any, reply: any) {
     const token = request.headers.authorization?.replace('Bearer ', '');
@@ -158,6 +160,8 @@ async function buildApp(): Promise<FastifyInstance> {
     if (!user) return reply.code(401).send({ error: 'Invalid or expired token' }), null;
     return user;
   }
+
+  // ─── Routes ───────────────────────────────────────────────────────────────
 
   app.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
 
@@ -307,10 +311,15 @@ async function buildApp(): Promise<FastifyInstance> {
 
 async function start() {
   try {
-    const app = await buildApp();
     const server: Server = createServer();
+    const app = await buildApp(server);
+
+    // Attach Fastify to the HTTP server
+    server.on('request', (req, res) => {
+      app.server.emit('request', req, res);
+    });
+
     setupWebSocket(server);
-    server.on('request', (req, res) => { app.server.emit('request', req, res); });
 
     server.listen({ port: PORT, host: HOST }, async () => {
       console.log(`🚀 Backend running on http://${HOST}:${PORT}`);
