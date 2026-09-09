@@ -133,7 +133,7 @@ async function getConnectionStats(userId: string) {
 
 async function initDatabase() {
   try {
-    const schema = await fs.readFile(nodePath.join(process.cwd(), 'backend', 'src', 'database', 'schema.sql'), 'utf-8');
+    const schema = await fs.readFile(nodePath.join(process.cwd(), 'src', 'database', 'schema.sql'), 'utf-8');
     for (const stmt of schema.split(';').filter(s => s.trim())) {
       try { await db.query(stmt); } catch { /* ignore */ }
     }

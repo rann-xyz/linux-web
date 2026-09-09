@@ -1,0 +1,7 @@
+[railway]
+command = "node dist/server.js"
+nodeVersion = "20"
+
+[deploy]
+region = "ams"
+source = "backend"
