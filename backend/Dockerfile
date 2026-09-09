@@ -5,15 +5,11 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files (relative to backend/ since rootDirectory=backend)
-COPY package*.json ./
+# Copy ALL files (for source files like schema.sql)
+COPY . .
 
-# Install ALL dependencies (including dev for build)
+# Install dependencies
 RUN npm install
-
-# Copy source (src is inside backend/src)
-COPY src/ ./src/
-COPY tsconfig.json ./
 
 # Build TypeScript → JavaScript
 RUN npx tsc
@@ -29,8 +25,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install --omit=dev
 
-# Copy built output from builder stage
+# Copy built output + source files needed at runtime
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/src ./src
 
 # Create user data directory (persistent storage)
 RUN mkdir -p /data/users && chmod 755 /data
