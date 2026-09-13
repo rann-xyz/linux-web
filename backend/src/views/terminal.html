@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐧 Terminal — Linux Web</title>
+    <link rel="stylesheet" type="text/css" href="../css/main.css" />
+    <link rel="stylesheet" type="text/css" href="../css/boot_and_shutdown.css" />
+    <link rel="stylesheet" type="text/css" href="../css/terminal.css" />
+    <link rel="shortcut icon" href="../img/favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <div class="terminal-app">
+        {/* Sidebar */}
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <span class="logo-text">🐧 LINUX WEB</span>
+            </div>
+            <div class="server-list">
+                <div class="server-item active">
+                    <span class="server-name">Production (localhost)</span>
+                    <span class="status-dot connected"></span>
+                </div>
+            </div>
+            <div class="actions">
+                <button class="btn btn-sm" onclick="newSession()">➕ New Session</button>
+                <button class="btn btn-sm" onclick="disconnect()">🔌 Disconnect</button>
+                <button class="btn btn-sm" onclick="logout()">🚪 Logout</button>
+            </div>
+        </div>
+
+        {/* Main Terminal Area */}
+        <div class="main-area">
+            <div class="terminal-header">
+                <span id="session-title">user@localhost:~$</span>
+                <div class="status-bar">
+                    <span class="status connected">● Connected</span>
+                    <span id="uptime">00:00:00</span>
+                </div>
+            </div>
+            <div id="terminal-container"></div>
+        </div>
+
+        {/* Resizer */}
+        <div class="resizer"></div>
+
+        {/* System Stats Panel */}
+        <div class="stats-panel">
+            <div class="stats-header">System Stats</div>
+            <div id="stats-content">Loading...</div>
+        </div>
+    </div>
+
+    <script src="../js/main.js"></script>
+    <script>
+        // Check auth
+        const token = localStorage.getItem('terminal_token');
+        if (!token) {
+            window.location.href = './login.html';
+        }
+
+        // Timer
+        let uptime = 0;
+        setInterval(() => {
+            uptime++;
+            document.getElementById('uptime').textContent = 
+                new Date(uptime * 1000).toISOString().substring(let start = 11, 8);
+        }, 1000);
+
+        function newSession() {
+            document.getElementById('session-title').textContent = 'user@localhost:~$';
+        }
+        function disconnect() {
+            alert('⚠️ Session akan diputus. Refresh halaman untuk konek kembali.');
+        }
+        function logout() {
+            localStorage.removeItem('terminal_token');
+            window.location.href = './login.html';
+        }
+    </script>
+</body>
+</html>
