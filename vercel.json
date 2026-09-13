@@ -2,11 +2,27 @@
   "version": 2,
   "builds": [
     {
+      "src": "*.html",
+      "use": "@vercel/static"
+    },
+    {
       "src": "frontend/public/**",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "backend/src/**",
       "use": "@vercel/static"
     }
   ],
   "routes": [
-    { "src": "/^(.+)$", "dest": "/frontend/public/$1" }
+    { "src": "/boot", "dest": "/boot.html" },
+    { "src": "/login", "dest": "/login.html" },
+    { "src": "/register", "dest": "/register.html" },
+    { "src": "/terminal", "dest": "/terminal.html" },
+    { "src": "/views/(.*)", "dest": "/$1.html" },
+    {
+      "src": "/static/(.*)",
+      "dest": "/frontend/public/static/$1"
+    }
   ]
 }

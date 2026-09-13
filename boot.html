@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐧 Linux Web Terminal — Boot</title>
+    <link rel="stylesheet" type="text/css" href="../css/main.css" />
+    <link rel="stylesheet" type="text/css" href="../css/boot_and_shutdown.css" />
+    <link rel="shortcut icon" href="../img/favicon.ico" type="image/x-icon">
+</head>
+<body>
+    <div class="boot-screen">
+        <div class="logo">
+            <img src="../img/logo.png" alt="Linux Web Logo">
+        </div>
+        <h1 class="boot-title">🐧 Linux Web Terminal</h1>
+        <p class="boot-subtitle">Secure server management via SSH Web Terminal</p>
+        
+        <div class="options">
+            <button class="btn btn-primary btn-large" id="btnLogin">🔐 Login / Register</button>
+            <button class="btn btn-secondary btn-large" id="btnDemo">🎮 Demo Mode</button>
+            <button class="btn btn-secondary btn-large" id="btnSettings">⚙️ Settings</button>
+        </div>
+        
+        <div class="info">
+            <p>🌐 Secure • ⚡ Fast • 🔒 Encrypted</p>
+        </div>
+    </div>
+
+    <script src="../js/main.js"></script>
+    <script>
+        document.getElementById('btnLogin').onclick = () => {
+            const page = new Object({ changePage: function(p) { window.location.href = p; } });
+            page.changePage('./views/login.html');
+        };
+        document.getElementById('btnDemo').onclick = () => {
+            // Demo mode - read-only terminal
+            alert('Demo Mode: Read-only terminal. Login for full access.');
+        };
+        document.getElementById('btnSettings').onclick = () => {
+            alert('Settings\n---\n• Theme: Dark\n• Font Size: Medium\n• Auto-reconnect: On');
+        };
+    </script>
+</body>
+</html>
