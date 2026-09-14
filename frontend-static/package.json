@@ -1,0 +1,13 @@
+{
+  "name": "linux-web-static",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "serve",
+    "build": "echo 'Static build complete - no compilation needed'",
+    "start": "serve -s ."
+  },
+  "dependencies": {
+    "serve": "^14.2.1"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "*",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "."
+      }
+    }
+  ],
+  "routes": [
+    { "src": "/boot", "dest": "/boot.html" },
+    { "src": "/login", "dest": "/login.html" },
+    { "src": "/register", "dest": "/register.html" },
+    { "src": "/terminal", "dest": "/terminal.html" },
+    { "src": "/", "dest": "/index.html" }
+  ]
+}
