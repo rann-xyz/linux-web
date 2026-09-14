@@ -1,0 +1,328 @@
+.boot-screen,
+.login-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem;
+  animation: fadeIn 0.6s ease-out;
+}
+
+.boot-screen {
+  background: linear-gradient(
+    135deg,
+    rgba(15, 23, 42, 0.95) 0%,
+    rgba(2, 6, 23, 0.95) 100%
+  ),
+  url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600"><defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(51,65,85,0.1)" stroke-width="1"/></pattern></defs><rect width="1200" height="600" fill="url(%23grid)" /></svg>');
+  background-attachment: fixed;
+  position: relative;
+  overflow: hidden;
+}
+
+.boot-screen::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%);
+  animation: float 20s infinite ease-in-out;
+  pointer-events: none;
+}
+
+.boot-screen::after {
+  content: '';
+  position: absolute;
+  bottom: -50%;
+  left: -50%;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
+  animation: float 25s infinite ease-in-out reverse;
+  pointer-events: none;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) translateX(0px);
+  }
+  50% {
+    transform: translateY(30px) translateX(-30px);
+  }
+}
+
+.boot-screen > * {
+  position: relative;
+  z-index: 1;
+}
+
+.logo {
+  margin-bottom: 2rem;
+  animation: slideInLeft 0.6s ease-out;
+}
+
+.logo img {
+  width: 120px;
+  height: 120px;
+  filter: drop-shadow(0 10px 30px rgba(59, 130, 246, 0.3));
+  animation: pulse 3s ease-in-out infinite;
+}
+
+.boot-title {
+  font-size: 3rem;
+  font-weight: 800;
+  text-align: center;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, #60a5fa, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: fadeIn 0.8s ease-out 0.2s both;
+  letter-spacing: -0.5px;
+}
+
+.boot-subtitle {
+  font-size: 1.25rem;
+  color: var(--text-secondary);
+  text-align: center;
+  margin-bottom: 3rem;
+  animation: fadeIn 0.8s ease-out 0.4s both;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 3rem;
+  width: 100%;
+  max-width: 400px;
+  animation: fadeIn 0.8s ease-out 0.6s both;
+}
+
+.options .btn {
+  width: 100%;
+  border-radius: 0.75rem;
+  font-size: 1.1rem;
+  padding: 1.25rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.options .btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  transition: left 0.3s ease;
+}
+
+.options .btn:hover::before {
+  left: 100%;
+}
+
+.info {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  letter-spacing: 0.05em;
+  animation: fadeIn 0.8s ease-out 0.8s both;
+}
+
+/* LOGIN SCREEN */
+.login-screen {
+  background: linear-gradient(
+    135deg,
+    rgba(15, 23, 42, 0.95) 0%,
+    rgba(2, 6, 23, 0.95) 100%
+  ),
+  url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600"><defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(51,65,85,0.1)" stroke-width="1"/></pattern></defs><rect width="1200" height="600" fill="url(%23grid)" /></svg>');
+  background-attachment: fixed;
+  position: relative;
+}
+
+.login-screen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 20% 50%,
+    rgba(59, 130, 246, 0.1) 0%,
+    transparent 50%
+  );
+}
+
+.login-screen > * {
+  position: relative;
+  z-index: 1;
+}
+
+.login-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+  animation: fadeIn 0.6s ease-out;
+}
+
+.login-subtitle {
+  color: var(--text-secondary);
+  text-align: center;
+  margin-bottom: 2rem;
+  animation: fadeIn 0.6s ease-out 0.1s both;
+}
+
+.login-form {
+  width: 100%;
+  max-width: 400px;
+  animation: fadeIn 0.6s ease-out 0.2s both;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  display: block;
+  color: var(--text-primary);
+}
+
+.form-group input {
+  width: 100%;
+  padding: 0.875rem 1.25rem;
+  border: 2px solid var(--border-color);
+  border-radius: 0.625rem;
+  background: rgba(30, 41, 59, 0.5);
+  color: var(--text-primary);
+  font-size: 1rem;
+  transition: var(--transition);
+  backdrop-filter: blur(10px);
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+  background: rgba(30, 41, 59, 0.8);
+}
+
+.form-group input::placeholder {
+  color: var(--text-secondary);
+}
+
+.login-form .btn {
+  width: 100%;
+  margin-top: 1rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.switch-mode {
+  margin-top: 2rem;
+  text-align: center;
+  animation: fadeIn 0.6s ease-out 0.3s both;
+}
+
+.switch-mode p {
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+}
+
+.switch-mode a {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 600;
+  transition: var(--transition);
+  position: relative;
+}
+
+.switch-mode a::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: var(--primary-color);
+  transition: width 0.3s ease;
+}
+
+.switch-mode a:hover::after {
+  width: 100%;
+}
+
+/* Error Message */
+.error-message {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  color: #fca5a5;
+  margin-bottom: 1rem;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.success-message {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  color: #6ee7b7;
+  margin-bottom: 1rem;
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .boot-title {
+    font-size: 2rem;
+  }
+
+  .boot-subtitle {
+    font-size: 1rem;
+  }
+
+  .login-title {
+    font-size: 1.75rem;
+  }
+
+  .options {
+    max-width: 100%;
+  }
+
+  .login-form {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .boot-screen,
+  .login-screen {
+    padding: 1rem;
+  }
+
+  .boot-title {
+    font-size: 1.75rem;
+  }
+
+  .logo img {
+    width: 80px;
+    height: 80px;
+  }
+
+  .options .btn {
+    padding: 1rem;
+    font-size: 1rem;
+  }
+}
