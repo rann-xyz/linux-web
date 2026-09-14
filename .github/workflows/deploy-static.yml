@@ -1,0 +1,26 @@
+name: Deploy Static Frontend to Railway
+
+on:
+  push:
+    paths:
+      - "frontend-static/**"
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Deploy to Railway
+        run: |
+          curl -s https://railway.app/api/v2/deployments \
+            -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"projectId":"${{ secrets.RAILWAY_PROJECT_ID }}","serviceName":"web","rootDir":"frontend-static"}'
