@@ -4,20 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>📝 Register — Linux Web Terminal</title>
-    <link rel="stylesheet" type="text/css" href="../css/main.css" />
-    <link rel="stylesheet" type="text/css" href="../css/boot_and_shutdown.css" />
-    <link rel="shortcut icon" href="../img/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/boot_and_shutdown.css">
 </head>
 <body>
     <div class="login-screen">
-        <h1 class="login-title">Create Your Account</h1>
-        <p class="login-subtitle">Daftar akun linux-web untuk akses penuh</p>
+        <h1 class="login-title">📝 Create Your Account</h1>
+        <p class="login-subtitle">Join Linux Web Terminal for full access</p>
         
-        <form id="registerForm" class="login-form">
-            <div class="form-group">
-                <label>Nama Lengkap</label>
-                <input type="text" id="fullname" placeholder="John Doe" required>
-            </div>
+        <form id="loginForm" class="login-form">
             <div class="form-group">
                 <label>Email Address</label>
                 <input type="email" id="email" placeholder="you@example.com" required>
@@ -26,45 +21,61 @@
                 <label>Password (min 6 characters)</label>
                 <input type="password" id="password" placeholder="••••••••" required>
             </div>
-            <button type="submit" class="btn btn-primary btn-large">📝 Register Akun</button>
+            <button type="submit" class="btn btn-primary btn-large">📝 Create Account</button>
         </form>
 
         <div class="switch-mode">
-            <p>Sudah punya akun? <a href="./login.html">Login di sini →</a></p>
-            <p><a href="./boot.html">← Kembali ke Beranda</a></p>
+            <p>Already have an account? <a href="/login.html">🔐 Login here →</a></p>
+            <p><a href="/boot.html">← Back to Home</a></p>
         </div>
     </div>
 
-    <script src="../js/main.js"></script>
+    <script src="/js/main.js"></script>
+    <script src="/js/auth.js"></script>
     <script>
-        document.getElementById('registerForm').onsubmit = async (e) => {
+        // Override for register mode
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const fullname = document.getElementById('fullname').value;
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
 
             if (password.length < 6) {
-                alert('Password harus min 6 karakter');
+                Utils.toast('Password must be at least 6 characters', 'error');
                 return;
             }
 
+            const btn = e.target.querySelector('button[type="submit"]');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '⏳ Processing...';
+
             try {
-                const res = await fetch('/api/auth/register', {
+                const response = await fetch('/api/auth/register', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ fullname, email, password })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
                 });
-                const data = await res.json();
+
+                const data = await response.json();
+
                 if (data.success) {
-                    alert('✅ Akun berhasil dibuat! Silakan login.');
-                    window.location.href = './login.html';
+                    localStorage.setItem('terminal_token', data.token);
+                    localStorage.setItem('user_email', email);
+                    Utils.toast('✅ Account created! Redirecting...', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/terminal.html';
+                    }, 1500);
                 } else {
-                    alert('❌ Gagal: ' + (data.error || 'Unknown error'));
+                    Utils.toast(data.error || 'Registration failed', 'error');
                 }
             } catch (err) {
-                alert('❌ Koneksi gagal. Pastikan backend sudah running.');
+                console.error('Registration error:', err);
+                Utils.toast('Connection failed', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
             }
-        };
+        });
     </script>
 </body>
 </html>

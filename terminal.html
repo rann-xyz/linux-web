@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🐧 Terminal — Linux Web</title>
-    <link rel="stylesheet" type="text/css" href="../css/main.css" />
-    <link rel="stylesheet" type="text/css" href="../css/boot_and_shutdown.css" />
-    <link rel="stylesheet" type="text/css" href="../css/terminal.css" />
-    <link rel="shortcut icon" href="../img/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/boot_and_shutdown.css">
+    <link rel="stylesheet" href="/css/terminal.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm/css/xterm.css">
 </head>
 <body>
     <div class="terminal-app">
@@ -51,171 +51,12 @@
         </div>
     </div>
 
-    <!-- XTerm CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm/css/xterm.css" />
-
     <!-- XTerm JS -->
     <script src="https://cdn.jsdelivr.net/npm/xterm/lib/xterm.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit/lib/xterm-addon-fit.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-web-links/lib/xterm-addon-web-links.min.js"></script>
     
-    <script>
-        // Auth check
-        const token = localStorage.getItem('terminal_token');
-        if (!token) {
-            window.location.href = './login.html';
-        }
-
-        let term, fitAddon, ws, uptime = 0;
-        const API_URL = 'https://linux-web-production-dfd2.up.railway.app';
-        const WS_URL = 'wss://linux-web-production-dfd2.up.railway.app/api/terminal';
-
-        async function initTerminal() {
-            // Create XTerm
-            term = new XTerm({
-                cursorBlink: true,
-                fontFamily: 'JetBrains Mono, monospace',
-                fontSize: 14,
-                theme: {
-                    background: '#0d1117',
-                    foreground: '#c9d1d9',
-                    cursor: '#58a6ff'
-                }
-            });
-            
-            fitAddon = new XTerm.addons.FitAddon();
-            const webLinksAddon = new XTerm.addons.WebLinksAddon();
-            term.loadAddons([fitAddon, webLinksAddon]);
-            term.open(document.getElementById('terminal-container'));
-            fitAddon.fit();
-
-            // Connect WebSocket
-            const wsUrl = `${WS_URL}?token=${token}`;
-            ws = new WebSocket(wsUrl);
-
-            ws.onopen = () => {
-                console.log('WebSocket connected');
-                updateStatus('connected', 'Connected');
-                fetchStats();
-            };
-
-            ws.onmessage = (event) => {
-                const msg = JSON.parse(event.data);
-                if (msg.type === 'ready') {
-                    document.getElementById('serverName').textContent = 'Container Ready';
-                    document.querySelector('#statusDot').className = 'status-dot connected';
-                } else if (msg.type === 'output') {
-                    term.write(msg.data);
-                } else if (msg.type === 'exit') {
-                    term.write(`\r\n\r\n*** Session exited with code ${msg.code} ***\r\n`);
-                    updateStatus('disconnected', 'Disconnected');
-                }
-            };
-
-            ws.onerror = (e) => {
-                console.error('WebSocket error:', e);
-                term.write('\r\n[Connection error. Refresh to retry.]\r\n');
-                updateStatus('disconnected', 'Disconnected');
-            };
-
-            ws.onclose = () => {
-                console.log('WebSocket closed');
-                updateStatus('disconnected', 'Disconnected');
-            };
-
-            // Terminal input
-            term.onKey((e, c) => {
-                if (ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'input', data: e.source }));
-                }
-                return { cancel: false };
-            });
-
-            term.onResize(({ cols, rows }) => {
-                if (ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'resize', cols, rows }));
-                }
-            });
-
-            // Ping
-            setInterval(() => {
-                if (ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'ping' }));
-                }
-            }, 30000);
-
-            // Init welcome
-            term.write('\r\n\x1b[32mWelcome to Linux Web Terminal! 🐧\x1b[0m\r\nType help for commands.\r\n');
-            term.write('\r\n\x1b[36m$ \x1b[0m');
-        }
-
-        function updateStatus(connected, text) {
-            const dot = document.querySelector('#statusDot');
-            const span = document.getElementById('statusText');
-            if (connected === 'connected') {
-                dot.className = 'status-dot connected';
-                span.innerHTML = '<span class="status connected">●</span> Connected';
-            } else {
-                dot.className = 'status-dot disconnected';
-                span.textContent = text;
-            }
-        }
-
-        function fetchStats() {
-            fetch(`${API_URL}/api/system/info`, {
-                headers: { Authorization: `Bearer ${token}` }
-            }).then(r => r.json()).then(data => {
-                document.getElementById('stats-content').innerHTML = 
-                    `<div class="stats-grid">
-                        <div><span class="stat-label">OS:</span> ${data.os}</div>
-                        <div><span class="stat-label">CPU:</span> ${data.cpuUsage}%</div>
-                        <div><span class="stat-label">RAM:</span> ${(data.memoryUsed/1024/1024).toFixed(1)} GB / ${(data.memoryTotal/1024/1024).toFixed(1)} GB</div>
-                        <div><span class="stat-label">Storage:</span> ${(data.storageUsed/1024/1024/1024).toFixed(1)} GB / ${(data.storageTotal/1024/1024/1024).toFixed(1)} GB</div>
-                        <div><span class="stat-label">Uptime:</span> ${formatUptime(data.uptime)}</div>
-                    </div>`;
-            }).catch(() => {
-                document.getElementById('stats-content').textContent = 'Unable to fetch stats';
-            });
-        }
-
-        function formatUptime(seconds) {
-            const h = Math.floor(seconds / 3600);
-            const m = Math.floor((seconds % 3600) / 60);
-            const s = seconds % 60;
-            return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-        }
-
-        function newSession() {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.close();
-            }
-            term.reset();
-            term.write('\r\n\x1b[33mNew session starting...\x1b[0m\r\n');
-            initTerminal();
-        }
-
-        function disconnect() {
-            if (ws) {
-                ws.close();
-            }
-            term?.reset();
-            term?.clear();
-            updateStatus('disconnected', 'Disconnected');
-        }
-
-        function logout() {
-            localStorage.removeItem('terminal_token');
-            if (ws) ws.close();
-            window.location.href = './boot.html';
-        }
-
-        // Init
-        window.addEventListener('resize', () => {
-            if (term && fitAddon) fitAddon.fit();
-        });
-
-        // Start
-        initTerminal().catch(console.error);
-    </script>
+    <script src="/js/main.js"></script>
+    <script src="/js/terminal.js"></script>
 </body>
 </html>

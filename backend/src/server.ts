@@ -24,7 +24,7 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 // Middleware
 // ─────────────────────────────────────
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: ['http://localhost:3000', 'http://localhost:3001', process.env.FRONTEND_URL || 'http://localhost:3000'],
   credentials: true,
 }));
 
@@ -36,6 +36,13 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   logger.info(`${req.method} ${req.path}`);
   next();
 });
+
+// ─────────────────────────────────────
+// Static Files
+// ─────────────────────────────────────
+// Serve static files from dist or public folder
+const staticPath = path.resolve(__dirname, '../../frontend');
+app.use(express.static(staticPath));
 
 // ─────────────────────────────────────
 // Health Check
@@ -65,10 +72,27 @@ app.use('/api/terminal', terminalRoutes);
 app.use('/api/containers', containerRoutes);
 
 // ─────────────────────────────────────
-// 404 Handler
+// SPA Fallback - Serve index.html for client routes
 // ─────────────────────────────────────
-app.use((req: Request, res: Response) => {
-  res.status(404).json({ error: 'Route not found' });
+app.get('*', (req: Request, res: Response) => {
+  // If request is for API, don't serve HTML
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'Route not found' });
+  }
+  // Serve HTML files directly
+  const filePath = path.join(staticPath, req.path);
+  res.sendFile(filePath, (err) => {
+    if (err) {
+      // If file not found, try with .html
+      const htmlPath = path.join(staticPath, req.path + '.html');
+      res.sendFile(htmlPath, (err2) => {
+        if (err2) {
+          // Fallback to boot.html
+          res.sendFile(path.join(staticPath, 'boot.html'));
+        }
+      });
+    }
+  });
 });
 
 // ─────────────────────────────────────

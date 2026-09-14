@@ -4,13 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🔐 Login — Linux Web Terminal</title>
-    <link rel="stylesheet" type="text/css" href="../css/main.css" />
-    <link rel="stylesheet" type="text/css" href="../css/boot_and_shutdown.css" />
-    <link rel="shortcut icon" href="../img/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="/css/boot_and_shutdown.css">
 </head>
 <body>
     <div class="login-screen">
-        <h1 class="login-title">Login to Linux Web Terminal</h1>
+        <h1 class="login-title">🔐 Login to Linux Web Terminal</h1>
         
         <form id="loginForm" class="login-form">
             <div class="form-group">
@@ -21,53 +20,16 @@
                 <label>Password</label>
                 <input type="password" id="password" name="password" placeholder="••••••••" required>
             </div>
-            <button type="submit" class="btn btn-primary btn-large">Sign In</button>
+            <button type="submit" class="btn btn-primary btn-large">🔓 Sign In</button>
         </form>
         
         <div class="switch-mode">
-            <p>Don't have an account? <a href="#" id="showRegister">Register</a></p>
-            <p><a href="./views/boot.html">← Back to Start</a></p>
+            <p>Don't have an account? <a href="#" id="showRegister">📝 Register here</a></p>
+            <p><a href="/boot.html">← Back to Home</a></p>
         </div>
     </div>
 
-    <script src="../js/main.js"></script>
-    <script>
-        document.getElementById('loginForm').onsubmit = async (e) => {
-            e.preventDefault();
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            
-            try {
-                const res = await fetch('/api/auth/login', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({email, password})
-                });
-                const data = await res.json();
-                if (data.success) {
-                    localStorage.setItem('terminal_token', data.token);
-                    window.location.href = './views/terminal.html';
-                } else {
-                    alert(data.error || 'Login failed');
-                }
-            } catch (err) {
-                alert('Connection error');
-            }
-        };
-        document.getElementById('showRegister').onclick = (e) => {
-            e.preventDefault();
-            document.getElementById('loginForm').innerHTML = `
-                <div class="form-group">
-                    <label>Email Address</label>
-                    <input type="email" id="email" placeholder="you@example.com" required>
-                </div>
-                <div class="form-group">
-                    <label>Password (min 6 chars)</label>
-                    <input type="password" id="password" placeholder="••••••••" required>
-                </div>
-                <button type="submit" class="btn btn-primary btn-large">Register</button>
-            `;
-        };
-    </script>
+    <script src="/js/main.js"></script>
+    <script src="/js/auth.js"></script>
 </body>
 </html>
