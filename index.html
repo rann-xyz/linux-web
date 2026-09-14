@@ -1,9 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta http-equiv="refresh" content="0;url=boot.html">
-    <title>Linux Web Terminal</title>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="0;url=./frontend-static/boot.html">
+    <title>Linux Web Terminal - Loading</title>
+    <style>body{display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace;background:#0d1117;color:#c9d1d9} .spinner{width:40px;height:40px;border:2px solid #30363d;border-top-color:#58a6ff;border-radius:50%;animation:spin 1s linear infinite}@keyframes spin{0%{transform:rotate(0)}to{transform:rotate(360deg)}}</style>
 </head>
-<body>Redirecting to Terminal...</body>
+<body>
+    <div style="text-align:center">
+        <div class="spinner"></div>
+        <p>Opening Terminal...</p>
+    </div>
+</body>
 </html>

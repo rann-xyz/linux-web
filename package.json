@@ -1,26 +1,19 @@
 {
-  "name": "web-terminal",
+  "name": "linux-web",
   "version": "1.0.0",
   "private": true,
+  "description": "Linux Web Terminal - Browser-based Ubuntu access",
+  
   "scripts": {
-    "dev": "cd backend && npm run dev",
-    "build": "cd backend && npm run build",
-    "start": "cd backend && npm start",
-    "dev:frontend": "cd frontend && npm run dev",
-    "build:frontend": "cd frontend && npm run build"
+    "dev": "python3 -m http.server 8000",
+    "build": "echo 'Static site - no build required'",
+    "start": "python3 -m http.server 8000"
   },
-  "workspaces": [
-    "frontend",
-    "backend"
-  ],
-  "dependencies": {
-    "bcryptjs": "^2.4.3",
-    "cors": "^2.8.5",
-    "dockerode": "^4.0.0",
-    "express": "^4.18.2",
-    "jsonwebtoken": "^9.0.2",
-    "pg": "^8.11.3",
-    "uuid": "^9.0.1",
-    "ws": "^8.16.0"
+
+  "githubPages": "https://rann-xyz.github.io/linux-web/",
+
+  "env": {
+    "NEXT_PUBLIC_API_URL": "https://linux-web-production-dfd2.up.railway.app",
+    "NEXT_PUBLIC_WS_URL": "wss://linux-web-production-dfd2.up.railway.app"
   }
 }

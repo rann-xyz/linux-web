@@ -1,0 +1,11 @@
+[build]
+  publish = "frontend-static"
+  command = "echo 'static'"
+
+[[plugins]]
+  package = "netlify-plugin-clear-cache"
+  [plugins.inputs]
+    paths = ["frontend-static"]
+
+[functions]
+  included_files = ["frontend-static/**"]
