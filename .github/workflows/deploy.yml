@@ -1,0 +1,25 @@
+name: Deploy to Vercel and Railway
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+    
+      - name: Deploy Frontend to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          vercel-org-id: RANN
+          vercel-project-id: prj_CEYv3Y1QUkm8hhSPPn1gPfDq2QIA
+          vercel-args: '--prod'
+    
+      - name: Deploy Backend to Railway
+        run: |
+          echo "Railway deployment triggered via GitHub"
